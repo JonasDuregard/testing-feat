@@ -1,0 +1,55 @@
+Name:                testing-feat
+Version:             0.4.0.2
+Synopsis:            Functional Enumeration of Algebraic Types
+Description:         Feat (Functional Enumeration of Algebraic Types) provides
+                     enumerations as functions from natural numbers to values 
+                     (similar to @toEnum@ but for any algebraic data type). This 
+                     can be used for SmallCheck-style systematic testing, 
+                     QuickCheck style random testing, and hybrids of the two. 
+                     .
+                     The enumerators are defined in a very boilerplate manner
+                     and there is a Template Haskell script for deriving the 
+                     class instance for most types.
+                     "Test.Feat" contain a subset of the other modules that 
+                     should be sufficient for most test usage. There 
+                     are some small and large example in the tar 
+                     ball. Builds with haskell-platform-2012-2.0.0 and with ghc-7.6.1.
+                                          
+License:             BSD3
+License-file:        LICENSE
+Author:              Jonas Duregård
+Maintainer:          jonas.duregard@gmail.com
+Copyright:           Jonas Duregård
+Category:            Testing
+Build-type:          Simple
+
+Extra-source-files:  
+    examples/template-haskell/th.hs
+    examples/haskell-src-exts/hse.hs
+    examples/lambda-terms/lambdas.hs
+
+Cabal-version:       >=1.2
+
+Library
+  Hs-source-dirs:       .
+  Exposed-modules:
+    Test.Feat, 
+    Test.Feat.Access,
+    Test.Feat.Class,
+    Test.Feat.Class.Override,
+    Test.Feat.Enumerate,
+    Test.Feat.Modifiers 
+
+  
+  Build-depends: 
+    base >= 4.5 && <= 4.8,
+    template-haskell >= 2.5 && < 2.10,
+    mtl >= 1 && < 3,
+    QuickCheck > 2 && < 3,
+    tagshare<0.1
+    
+  Other-modules:
+    Test.Feat.Internals.Derive
+    Test.Feat.Internals.Tag
+    Test.Feat.Internals.Newtypes
+  
