@@ -1,5 +1,5 @@
 Name:                testing-feat
-Version:             0.4.0.2
+Version:             1.0.0.0
 Synopsis:            Functional Enumeration of Algebraic Types
 Description:         Feat (Functional Enumeration of Algebraic Types) provides
                      enumerations as functions from natural numbers to values 
@@ -13,7 +13,7 @@ Description:         Feat (Functional Enumeration of Algebraic Types) provides
                      "Test.Feat" contain a subset of the other modules that 
                      should be sufficient for most test usage. There 
                      are some small and large example in the tar 
-                     ball. Builds with haskell-platform-2012-2.0.0 and with ghc-7.6.1.
+                     ball.
                                           
 License:             BSD3
 License-file:        LICENSE
@@ -34,22 +34,18 @@ Library
   Hs-source-dirs:       .
   Exposed-modules:
     Test.Feat, 
-    Test.Feat.Access,
-    Test.Feat.Class,
-    Test.Feat.Class.Override,
+    Test.Feat.Finite,
     Test.Feat.Enumerate,
-    Test.Feat.Modifiers 
-
+    Test.Feat.Access
+    
+    -- Compatability
+    Test.Feat.Modifiers
+    Test.Feat.Class
   
   Build-depends: 
     base >= 4.5 && <= 4.8,
-    template-haskell >= 2.5 && < 2.10,
-    mtl >= 1 && < 3,
     QuickCheck > 2 && < 3,
-    tagshare<0.1
-    
-  Other-modules:
-    Test.Feat.Internals.Derive
-    Test.Feat.Internals.Tag
-    Test.Feat.Internals.Newtypes
+    sized-functors < 0.2,
+    testing-type-modifiers < 0.2
+
   

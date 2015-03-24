@@ -28,7 +28,7 @@ module Test.Feat.Enumerate (
   cartesian,
   singleton,
   pay,
-
+{-
   -- *** Polymorphic sharing
   module Data.Typeable,
   Tag(Source),
@@ -37,52 +37,57 @@ module Test.Feat.Enumerate (
   noOptim,
   optimise,
   irregular
-
+-}
   ) where
 
 -- testing-feat
-import Control.Monad.TagShare(Sharing, runSharing, share)
-import Test.Feat.Internals.Tag(Tag(Source))
+-- import Control.Monad.TagShare(Sharing, runSharing, share)
+-- import Test.Feat.Internals.Tag(Tag(Source))
 -- base
+import Control.Sized
 import Control.Applicative
-import Control.Monad
-import Data.Function
 import Data.Monoid
 import Data.Typeable
-import Language.Haskell.TH
 import Data.List(transpose)
-import Control.Monad.State -- TODO: remove direct dependency on mtl
-
+import Test.Feat.Finite
 
 type Part = Int
-type Index = Integer
 
 -- | A functional enumeration of type @t@ is a partition of
 -- @t@ into finite numbered sets called Parts. Each parts contains values
 -- of a certain cost (typically the size of the value).
 data Enumerate a = Enumerate 
    { revParts   ::  RevList (Finite a)
-   , optimiser  ::  Sharing Tag (Enumerate a)
    } deriving Typeable    
 
 parts :: Enumerate a -> [Finite a]
 parts = fromRev . revParts
 
 fromParts :: [Finite a] -> Enumerate a
-fromParts ps = Enumerate (toRev ps) (return $ fromParts ps)
+fromParts ps = Enumerate (toRev ps)
 
 -- | Only use fmap with bijective functions (e.g. data constructors)
 instance Functor Enumerate where 
-  fmap f e = Enumerate (fmap (fmap f) $ revParts e) (fmap (noOptim . fmap f) $ optimiser e)
+  fmap f e = Enumerate (fmap (fmap f) $ revParts e)
 
 -- | Pure is 'singleton' and '<*>' corresponds to cartesian product (as with lists)
 instance Applicative Enumerate where
   pure     = singleton
   f <*> a  = fmap (uncurry ($)) (cartesian f a)
 
+instance Alternative Enumerate where
+  empty = Enumerate mempty
+  (<|>) = union
+
+instance Sized Enumerate where
+  pay e    = Enumerate (revCons mempty $ revParts e)
+  aconcat  = mconcat
+  pair     = cartesian
+  -- fin
+
 -- | The @'mappend'@ is (disjoint) @'union'@
 instance Monoid (Enumerate a) where
-  mempty      = Enumerate mempty (return mempty)
+  mempty      = empty
   mappend     = union
   mconcat     = econcat
   
@@ -93,12 +98,10 @@ econcat [a]   = a
 econcat [a,b] = union a b
 econcat xs    = Enumerate 
   (toRev . map mconcat . transpose $ map parts xs)
-  (fmap (noOptim . econcat) $ mapM optimiser xs)
 
 
 -- Product of two enumerations
-cartesian (Enumerate xs1 o1) (Enumerate xs2 o2) =
-  Enumerate (xs1 `prod` xs2) (fmap noOptim $ liftM2 cartesian o1 o2)
+cartesian (Enumerate xs1) (Enumerate xs2) = Enumerate (xs1 `prod` xs2)
 
 prod :: RevList (Finite a) -> RevList (Finite b) -> RevList (Finite (a,b))
 prod (RevList [] _)           _                 = mempty
@@ -133,18 +136,13 @@ prod (RevList xs0@(_:xst) _)  (RevList _ rys0)  = toRev$ prod' rys0 where
 
 
 union :: Enumerate a -> Enumerate a -> Enumerate a
-union (Enumerate xs1 o1) (Enumerate xs2 o2) =
-  Enumerate (xs1 `mappend` xs2) (fmap noOptim $ liftM2 union o1 o2)
+union (Enumerate xs1) (Enumerate xs2) = Enumerate (xs1 `mappend` xs2)
 
 
 -- | The definition of @pure@ for the applicative instance. 
 singleton :: a -> Enumerate a
-singleton a = Enumerate (revPure $ finPure a) (return (singleton a))
+singleton a = Enumerate (revPure $ pure a)
 
-
--- | Increases the cost of all values in an enumeration by one.
-pay :: Enumerate a -> Enumerate a
-pay e = Enumerate (revCons mempty $ revParts e) (fmap (noOptim . pay) $ optimiser e)
 
 
 ------------------------------------------------------------------
@@ -189,90 +187,5 @@ revPure a = RevList [a] [[a]]
 
 
 
-
--------------------------------------------------------
--- Polymorphic sharing
-
-eShare :: Typeable a => Tag -> Enumerate a -> Enumerate a
-eShare t e = e{optimiser = share t (optimiser e)}
-
--- Automatically generates a unique tag based on the source position.
-tag :: Q Exp -- :: Tag
-tag = location >>= makeTag where
-   makeTag Loc{  loc_package  = p,    
-                 loc_module   = m,    
-                 loc_start    = (r,c) }
-       = [|Source p m r c|]
-
-optimise :: Enumerate a -> Enumerate a
-optimise e = let e' = runSharing (optimiser e) in
-  e'{optimiser = return e'}   
-
-noOptim :: Enumerate a -> Enumerate a
-noOptim e = e{optimiser = return e}
-
--- | Used to avoid non-termination of 'optimise' in the presence of 
--- irregular data types. @irregular@ should be applied to the enumeration for the 
--- constructor that introduces the irregularity. Excessive use may impact 
--- performance
-irregular :: Enumerate a -> Enumerate a
-irregular e = e{optimiser = gets $ evalState $ optimiser e}
-
-         
---------------------------------------------------------
--- Operations on finite sets
-data Finite a = Finite {fCard :: Index, fIndex :: Index -> a}
-
-finEmpty = Finite 0 (\i -> error "index: Empty")
-
-finUnion :: Finite a -> Finite a -> Finite a
-finUnion f1 f2 
-  | fCard f1 == 0  = f2
-  | fCard f2 == 0  = f1
-  | otherwise      = Finite car sel where
-  car = fCard f1 + fCard f2
-  sel i = if i < fCard f1
-    then fIndex f1 i
-    else fIndex f2 (i-fCard f1)  
-
-instance Functor Finite where
-  fmap f fin = fin{fIndex = f . fIndex fin}
-
-instance Applicative Finite where
-  pure = finPure
-  a <*> b = fmap (uncurry ($)) (finCart a b)
-  
-
-instance Monoid (Finite a) where 
-  mempty = finEmpty
-  mappend = finUnion
-  mconcat xs = Finite
-    (sum $ map fCard xs)
-    (sumSel $ filter ((>0) . fCard) xs)
-
-sumSel :: [Finite a] -> (Index -> a)
-sumSel (f:rest) = \i -> if i < fCard f
-  then fIndex f i
-  else sumSel rest (i-fCard f)
-sumSel _        = error "Index out of bounds"
-
-finCart :: Finite a -> Finite b -> Finite (a,b)
-finCart f1 f2 = Finite car sel where
-  car = fCard f1 * fCard f2
-  sel i = let (q, r) = (i `quotRem` fCard f2) 
-    in (fIndex f1 q, fIndex f2 r)
-
-finPure :: a -> Finite a
-finPure a = Finite 1 one where
-  one 0 = a
-  one _ = error "index: index out of bounds"
-
-
-fromFinite :: Finite a -> (Index,[a])
-fromFinite (Finite c ix) = (c,map ix [0..c-1])
-
-
-instance Show a => Show (Finite a) where
-  show = show . fromFinite
 
 

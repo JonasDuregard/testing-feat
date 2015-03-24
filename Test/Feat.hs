@@ -3,15 +3,12 @@
 module Test.Feat(
   Enumerate(),
   -- * The type class
-  Enumerable(..),
-  shared,
-  nullary,
-  unary,
-  FreePair(..),
-  funcurry,
-  consts,
+  Enumerable(..), datatype, c0, c1, c2, c3, c4, c5, c6, c7,
+
   -- ** Automatic derivation
-  deriveEnumerable,
+--  deriveEnumerable,
+
+
   -- * Accessing data
   optimal,
   index,
@@ -19,16 +16,30 @@ module Test.Feat(
   values,
   bounded,
   uniform,
+
   -- ** Testing drivers
   featCheck,
   ioFeat,
   ioAll,
   ioBounded,
   Report,
-  inputRep
+  inputRep,
+  
+  -- * Backwards compatability
+  shared,
+  nullary,
+  unary,
+  funcurry,
+  consts,  
+  
   ) where
 
 import Test.Feat.Access
-import Test.Feat.Class
+-- import Test.Feat.Class
 import Test.Feat.Enumerate
+import Test.Feat.Class
+import Control.Sized.Enumerable
+
+
+
 -- import Test.Feat.Modifiers

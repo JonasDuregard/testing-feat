@@ -3,6 +3,7 @@
 -- SmallCheck.
 module Test.Feat.Access(
   -- ** Accessing functions
+  optimal,
   index,
   select,
   values,
@@ -20,11 +21,8 @@ module Test.Feat.Access(
   inputRep,
   prePostRep,
   
-  -- ** Compatibility
-  -- *** QuickCheck
+  -- ** QuickCheck Compatibility
   uniform,
-  -- *** SmallCheck
-  toSeries,
   
   -- ** Non-class versions of the access functions
   indexWith,
@@ -33,12 +31,12 @@ module Test.Feat.Access(
   stripedWith,
   boundedWith,
   uniformWith,
-  toSeriesWith
+--  toSeriesWith
   )where
 
 -- testing-feat
 import Test.Feat.Enumerate 
-import Test.Feat.Class
+import Control.Sized.Enumerable
 -- base
 import Data.List
 import Data.Ratio((%))
@@ -47,6 +45,8 @@ import Test.QuickCheck
 -- smallcheck
 -- import Test.SmallCheck.Series -- Not needed
 
+optimal :: Enumerable a => Enumerate a
+optimal = global
 
 -- | Mainly as a proof of concept we define a function to index into
 -- an enumeration. (If this is repeated multiple times it might be
@@ -137,10 +137,12 @@ prePostRep f pred a = let fa = f a in if pred a fa
 uniform :: Enumerable a => Int -> Gen a
 uniform = uniformWith optimal
 
+{-
+Outdated
 -- | Compatibility with SmallCheck. 
 toSeries :: Enumerable a => Int -> [a] 
 toSeries = toSeriesWith optimal
-
+-}
 
 -- | Non class version of 'index'.
 indexWith :: Enumerate a -> Integer -> a
@@ -199,7 +201,10 @@ uniformWith = uni . parts where
           0  -> uni rest 1
           _  -> do  i <- choose (0,fCard fin-1)
                     return (fIndex fin i)   
-      
+
+{-
+Outdated
 -- | Non class version of 'toSeries'.
 toSeriesWith :: Enumerate a -> Int -> [a]
 toSeriesWith e d = concat (take (d+1) $ map snd $ valuesWith e)
+-}
