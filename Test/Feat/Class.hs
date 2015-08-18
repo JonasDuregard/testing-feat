@@ -1,5 +1,5 @@
 
-module Test.Feat.Class 
+module Test.Feat.Class
   ( Enumerable(..)
   , nullary
   , unary
@@ -8,9 +8,9 @@ module Test.Feat.Class
   , consts
   ) where
 
-import Control.Sized.Enumerable
+import Control.Enumerable
 
--- compatability 
+-- compatability
 {-# DEPRECATED nullary "use c0 instead" #-}
 -- nullary :: x -> Memoizable f x
 nullary x = c0 x

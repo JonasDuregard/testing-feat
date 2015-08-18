@@ -24,21 +24,21 @@ module Test.Feat(
   ioBounded,
   Report,
   inputRep,
-  
+
   -- * Backwards compatability
   shared,
   nullary,
   unary,
   funcurry,
-  consts,  
-  
+  consts,
+
   ) where
 
 import Test.Feat.Access
 -- import Test.Feat.Class
 import Test.Feat.Enumerate
 import Test.Feat.Class
-import Control.Sized.Enumerable
+import Control.Enumerable
 
 
 
