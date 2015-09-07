@@ -82,7 +82,6 @@ striped = stripedWith optimal
 bounded :: Enumerable a => Integer -> [(Integer,[a])]
 bounded = boundedWith optimal
 
-
 -- | Check a property for all values up to a given size.
 -- @ featCheck p prop = 'ioAll' p ('inputRep' prop) @
 featCheck :: (Enumerable a, Show a) => Int -> (a -> Bool) -> IO ()
@@ -93,7 +92,7 @@ featCheck p prop = ioAll p (inputRep prop)
 featCheckStop :: (Enumerable a, Show a) => (a -> Bool) -> IO ()
 featCheckStop prop = do
   ioFeatStop values $
-    \ a -> do let pa = pred a
+    \ a -> do let pa = prop a
               when (not pa) (printCounterex a)
               return pa
   return ()
