@@ -45,6 +45,8 @@ import Test.QuickCheck
 -- smallcheck
 -- import Test.SmallCheck.Series -- Not needed
 
+import Control.Monad
+
 optimal :: Enumerable a => Enumerate a
 optimal = global
 
@@ -86,6 +88,16 @@ bounded = boundedWith optimal
 featCheck :: (Enumerable a, Show a) => Int -> (a -> Bool) -> IO ()
 featCheck p prop = ioAll p (inputRep prop)
 
+-- | Check a property for all values in the enumeration, stopping and
+-- printing the first counterexample.
+featCheckStop :: (Enumerable a, Show a) => (a -> Bool) -> IO ()
+featCheckStop prop = do
+  ioFeatStop values $
+    \ a -> do let pa = pred a
+              when (not pa) (printCounterex a)
+              return pa
+  return ()
+
 -- | Functions that test a property and reports the result.
 type Report a = a -> IO ()
 
@@ -95,12 +107,23 @@ type Report a = a -> IO ()
 -- reporting its progress and the number of
 -- tests before each new part.
 ioFeat :: [(Integer,[a])] -> Report a -> IO ()
-ioFeat vs f = go vs 0 0 where
-  go ((c,xs):xss) s tot = do
-    putStrLn $ "--- Testing "++show c++" values at size " ++ show s
-    mapM f xs
-    go xss (s+1) (tot + c)
-  go []           s tot = putStrLn $ "--- Done. Tested "++ show tot++" values"
+ioFeat vs f = ioFeatStop vs (\ x -> f x >> return True) >> return ()
+
+-- | Like 'ioFeat', but returns the first value satisfying the predicate.
+--   If none can be found, Nothing is returned.
+ioFeatStop :: [(Integer,[a])] -> (a -> IO Bool) -> IO (Maybe a)
+ioFeatStop vs p = go vs 0 0 where
+  go ((c,xs):xss) s tot =
+    do let aux (y:ys) = do
+             b <- p y
+             if b then aux ys
+                  else return (Just y)
+           aux [] = go xss (s+1) (tot + c)
+       putStrLn $ "--- Testing "++show c++" values at size " ++ show s
+       aux xs
+  go []           s tot = do
+    putStrLn $ "--- Done. Tested "++ show tot++" values"
+    return Nothing
 
 -- | Defined as @ioAll p = 'ioFeat' (take p 'values') @
 ioAll :: Enumerable a => Int -> Report a -> IO ()
@@ -110,14 +133,16 @@ ioAll p = ioFeat (take p values)
 ioBounded :: Enumerable a => Integer -> Int -> Report a -> IO ()
 ioBounded n p = ioFeat (take p $ bounded n)
 
+printCounterex :: Show a => a -> IO ()
+printCounterex a = do
+  putStrLn "Counterexample found:"
+  print a
+  putStrLn ""
+
 -- | Reports counterexamples to the given predicate by printing them
 inputRep :: Show a => (a -> Bool) -> Report a
-inputRep pred a = if pred a
-  then return ()
-  else do
-    putStrLn "Counterexample found:"
-    print a
-    putStrLn ""
+inputRep pred a = if pred a then return ()
+                            else printCounterex a
 
 -- | Takes a function and a predicate on its input/output pairs.
 -- Reports counterexamples by printing the failing input/output pair.
