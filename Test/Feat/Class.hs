@@ -1,14 +1,15 @@
 
-module Test.Feat.Class 
+module Test.Feat.Class {-# DEPRECATED "Use Control.Sized.Enumerable instead" #-}
   ( Enumerable(..)
   , nullary
   , unary
   , funcurry
   , shared
   , consts
+  , deriveEnumerable
   ) where
 
-import Control.Sized.Enumerable
+import Control.Enumerable
 
 -- compatability 
 {-# DEPRECATED nullary "use c0 instead" #-}

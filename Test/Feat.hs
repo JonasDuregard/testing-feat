@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 -- | This module contains a (hopefully) manageable subset of the functionality
 -- of Feat. The rest resides only in the Test.Feat.* modules.
 module Test.Feat(
@@ -6,7 +8,7 @@ module Test.Feat(
   Enumerable(..), datatype, c0, c1, c2, c3, c4, c5, c6, c7,
 
   -- ** Automatic derivation
---  deriveEnumerable,
+  deriveEnumerable,
 
 
   -- * Accessing data
@@ -38,7 +40,7 @@ import Test.Feat.Access
 -- import Test.Feat.Class
 import Test.Feat.Enumerate
 import Test.Feat.Class
-import Control.Sized.Enumerable
+import Control.Enumerable
 
 
 

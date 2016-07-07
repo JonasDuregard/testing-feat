@@ -1,5 +1,5 @@
 -- | A datatype of finite sequences
-module Test.Feat.Finite (Finite (..), Index, fromFinite) where
+module Test.Feat.Finite (Finite (..), Index, fromFinite, finFin) where
 
 import Control.Applicative
 import Data.Monoid
@@ -62,3 +62,6 @@ fromFinite (Finite c ix) = (c,map ix [0..c-1])
 instance Show a => Show (Finite a) where
   show = show . fromFinite
 
+finFin :: Integer -> Finite Integer
+finFin k | k <= 0 = finEmpty
+finFin k = Finite k (\i -> i)

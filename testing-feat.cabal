@@ -43,9 +43,9 @@ Library
     Test.Feat.Class
   
   Build-depends: 
-    base >= 4.5 && <= 4.8,
+    base >= 4.5 && < 4.9,
     QuickCheck > 2 && < 3,
-    sized-functors < 0.2,
+    size-based < 0.2,
     testing-type-modifiers < 0.2
 
   

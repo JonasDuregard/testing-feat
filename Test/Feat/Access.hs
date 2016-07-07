@@ -36,7 +36,7 @@ module Test.Feat.Access(
 
 -- testing-feat
 import Test.Feat.Enumerate 
-import Control.Sized.Enumerable
+import Control.Enumerable
 -- base
 import Data.List
 import Data.Ratio((%))

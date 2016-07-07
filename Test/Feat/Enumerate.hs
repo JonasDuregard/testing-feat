@@ -28,16 +28,6 @@ module Test.Feat.Enumerate (
   cartesian,
   singleton,
   pay,
-{-
-  -- *** Polymorphic sharing
-  module Data.Typeable,
-  Tag(Source),
-  tag,
-  eShare,
-  noOptim,
-  optimise,
-  irregular
--}
   ) where
 
 -- testing-feat
@@ -83,7 +73,7 @@ instance Sized Enumerate where
   pay e    = Enumerate (revCons mempty $ revParts e)
   aconcat  = mconcat
   pair     = cartesian
-  -- fin
+  fin k    = fromParts [finFin k]
 
 -- | The @'mappend'@ is (disjoint) @'union'@
 instance Monoid (Enumerate a) where

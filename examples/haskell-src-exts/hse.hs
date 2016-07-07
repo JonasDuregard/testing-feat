@@ -1,7 +1,9 @@
 {-# Language TemplateHaskell #-}
 import Test.Feat
-import Test.Feat.Class
+-- import Test.Feat.Class
 import Test.Feat.Modifiers
+
+import Control.Enumerable
 
 import Language.Haskell.Exts
 import Language.Haskell.Exts.Syntax
@@ -82,8 +84,14 @@ myParse = parseWithMode defaultParseMode{
   extensions = ge'
   }
 
-ge' = [ TypeFamilies
-    ]
+ge' = map EnableExtension
+      [ TypeFamilies
+      , TemplateHaskell
+      , MagicHash
+      , ParallelArrays
+      , LambdaCase
+      , ExplicitNamespaces
+      ]
 
 
 sureParse :: Parseable a => String -> a
@@ -96,8 +104,12 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
 
 
 
+
+
+
 -- Uncomment the dExcluding line to enable known bugs
 (let 
+
   buggy1 = 
     dExcluding 'UnboxedSingleCon . 
     dAll
@@ -106,23 +118,37 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
     dAll
     
   buggy3 = 
+    dExcept 'LCase [| c1 (LCase . nonEmpty) |] .
+    dExcept 'Do [| c2 $ \ss e -> Do (ss ++ [Qualifier e]) |] .
+  
     dExcluding 'XPcdata .
     dExcluding 'XExpTag .
     dExcluding 'XChildTag .
-    dExcept 'XPcdata [| unary $ XPcdata . nonEmpty |] . dAll
+    dExcept 'XPcdata [| c1 $ XPcdata . nonEmpty |] .
+    dExcept 'MultiIf [| c1 $ MultiIf . nonEmpty |] .
+    dAll
   
+  
+  fixdecs = 
+    dExcept 'InfixDecl [| c4 $ \a b c -> InfixDecl a b c . nonEmpty |] .
+    dAll
+    
+  fixlit = 
+    dExcept 'PrimWord [| c1 (\x -> PrimWord (toInteger (x :: Word))) |] .
+    dAll
+    
 
  in fmap concat $ mapM deriveEnumerable' [
   dAll ''Module,
 --  dAll ''SrcLoc,
-  dExcept 'LanguagePragma [|unary $ funcurry $ \x -> LanguagePragma x . nonEmpty|] 
+  dExcluding 'AnnModulePragma $ dExcluding 'LanguagePragma
+   -- dExcept 'LanguagePragma [|c2 $ \x -> LanguagePragma x . nonEmpty|] 
     $ dAll ''ModulePragma,
-  dExcept 'WarnText [|unary $ WarnText . nonEmpty|]
-    $ dExcept 'DeprText [|unary $ DeprText . nonEmpty|]  
+  dExcept 'WarnText [|c1 $ WarnText . nonEmpty|]
+    $ dExcept 'DeprText [|c1 $ DeprText . nonEmpty|]  
     $ dAll ''WarningText,
-  dAll ''ExportSpec,
   dAll ''ImportDecl,
-  dAll ''Decl,
+  fixdecs ''Decl,
   dAll ''Tool,
   dAll ''QName,
   dAll ''ImportSpec,
@@ -165,40 +191,65 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   dAll ''QOp,
   dAll ''Stmt,
   dAll ''Alt,
-  dAll ''Literal,
+  fixlit ''Literal,
   dAll ''IPName,
   dAll ''ConDecl,
   dAll ''RPatOp,
-  dAll ''GuardedAlts,
+  -- dAll ''GuardedAlts,
   dAll ''BangType,
-  dAll ''GuardedAlt
+  -- dAll ''GuardedAlt,
+  dAll ''TypeEqn,
+  dAll ''Sign,
+  dAll ''Role,
+  dAll ''Promoted,
+  dAll ''PatternSynDirection,
+  dAll ''Overlap,
+  dAll ''Namespace,
+  dAll ''BooleanFormula
   ])
 
+instance Enumerable ExportSpec where
+  enumerate = datatype [ c1 $ EVar . nonSpecial
+                       , c2 $ \x -> EAbs x . nonSpecial
+                       -- , c1 $ EThingAll . nonSpecial
+                       -- , c2 $ EThingWith . nonSpecial
+                       , c1 $ EModuleContents
+                       ]
+
+-- newtype Upper = Upper {upper :: QName}
+-- instance Enumerable Upper where
+--  enumerate = datatype [c2 Qual
+
+newtype NonSpecialName = NonSpecialName {nonSpecial :: QName}
+instance Enumerable NonSpecialName where
+  enumerate = datatype [fmap NonSpecialName $ c2 Qual
+                       ,fmap NonSpecialName $ c1 UnQual
+                       ]
 
 
 instance Enumerable ModuleName where 
-  enumerate = consts 
-    [ nullary $ ModuleName "M"
-    , nullary $ ModuleName "C.M"
+  enumerate = datatype 
+    [ c0 $ ModuleName "M"
+    , c0 $ ModuleName "C.M"
     ]
 
 -- Will probably need to be broken into constructor/variable/symbol names
 instance Enumerable Name where
-  enumerate = consts 
-    [ nullary $ Ident "C"
-    , nullary $ Ident "v"
-    , nullary $ Symbol "*"
+  enumerate = datatype 
+    [ c0 $ Ident "C"
+    , c0 $ Ident "v"
+--    , c0 $ Symbol "*"
     ]
 
 instance Enumerable CName where
-  enumerate = consts
-    [ nullary $ VarName (Ident "v")
-    , nullary $ ConName (Ident "C")
+  enumerate = datatype
+    [ c0 $ VarName (Ident "v")
+    , c0 $ ConName (Ident "C")
     ]
 
 instance Enumerable SrcLoc where
-  enumerate = consts
-    [ nullary (SrcLoc "File.hs" 0 0)]
+  enumerate = datatype
+    [ c0 (SrcLoc "File.hs" 0 0)]
 
 
 
