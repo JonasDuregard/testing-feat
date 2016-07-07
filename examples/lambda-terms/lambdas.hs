@@ -8,7 +8,7 @@ import Test.Feat
 
 data Term scope  = Lam (Term (FinS scope))
                  | App (Term scope) (Term scope)
-                 | Var scope 
+                 | Var scope
                  deriving (Show, Typeable)
 instance Enumerable a => Enumerable (Term a) where
   enumerate  =   unary Var   -- Variables are size 0, add pay to make size 1
@@ -34,4 +34,3 @@ count n = fst $ vs !! n
 
 -- Select any term of a given size
 selectTerm = selectWith closed
-

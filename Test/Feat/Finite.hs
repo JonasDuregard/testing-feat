@@ -10,14 +10,14 @@ data Finite a = Finite {fCard :: Index, fIndex :: Index -> a}
 finEmpty = Finite 0 (\i -> error "index: Empty")
 
 finUnion :: Finite a -> Finite a -> Finite a
-finUnion f1 f2 
+finUnion f1 f2
   | fCard f1 == 0  = f2
   | fCard f2 == 0  = f1
   | otherwise      = Finite car sel where
   car = fCard f1 + fCard f2
   sel i = if i < fCard f1
     then fIndex f1 i
-    else fIndex f2 (i-fCard f1)  
+    else fIndex f2 (i-fCard f1)
 
 instance Functor Finite where
   fmap f fin = fin{fIndex = f . fIndex fin}
@@ -30,7 +30,7 @@ instance Alternative Finite where
   empty = finEmpty
   (<|>) = finUnion
 
-instance Monoid (Finite a) where 
+instance Monoid (Finite a) where
   mempty = finEmpty
   mappend = finUnion
   mconcat xs = Finite
@@ -46,7 +46,7 @@ sumSel _        = error "Index out of bounds"
 finCart :: Finite a -> Finite b -> Finite (a,b)
 finCart f1 f2 = Finite car sel where
   car = fCard f1 * fCard f2
-  sel i = let (q, r) = (i `quotRem` fCard f2) 
+  sel i = let (q, r) = (i `quotRem` fCard f2)
     in (fIndex f1 q, fIndex f2 r)
 
 finPure :: a -> Finite a
@@ -65,3 +65,4 @@ instance Show a => Show (Finite a) where
 finFin :: Integer -> Finite Integer
 finFin k | k <= 0 = finEmpty
 finFin k = Finite k (\i -> i)
+

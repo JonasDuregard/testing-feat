@@ -2,19 +2,19 @@ Name:                testing-feat
 Version:             1.0.0.0
 Synopsis:            Functional Enumeration of Algebraic Types
 Description:         Feat (Functional Enumeration of Algebraic Types) provides
-                     enumerations as functions from natural numbers to values 
-                     (similar to @toEnum@ but for any algebraic data type). This 
-                     can be used for SmallCheck-style systematic testing, 
-                     QuickCheck style random testing, and hybrids of the two. 
+                     enumerations as functions from natural numbers to values
+                     (similar to @toEnum@ but for any algebraic data type). This
+                     can be used for SmallCheck-style systematic testing,
+                     QuickCheck style random testing, and hybrids of the two.
                      .
                      The enumerators are defined in a very boilerplate manner
-                     and there is a Template Haskell script for deriving the 
+                     and there is a Template Haskell script for deriving the
                      class instance for most types.
-                     "Test.Feat" contain a subset of the other modules that 
-                     should be sufficient for most test usage. There 
-                     are some small and large example in the tar 
+                     "Test.Feat" contain a subset of the other modules that
+                     should be sufficient for most test usage. There
+                     are some small and large example in the tar
                      ball.
-                                          
+
 License:             BSD3
 License-file:        LICENSE
 Author:              Jonas Duregård
@@ -23,7 +23,7 @@ Copyright:           Jonas Duregård
 Category:            Testing
 Build-type:          Simple
 
-Extra-source-files:  
+Extra-source-files:
     examples/template-haskell/th.hs
     examples/haskell-src-exts/hse.hs
     examples/lambda-terms/lambdas.hs
@@ -33,19 +33,17 @@ Cabal-version:       >=1.2
 Library
   Hs-source-dirs:       .
   Exposed-modules:
-    Test.Feat, 
+    Test.Feat,
     Test.Feat.Finite,
     Test.Feat.Enumerate,
     Test.Feat.Access
-    
-    -- Compatability
+
+    -- Compatibility
     Test.Feat.Modifiers
     Test.Feat.Class
-  
+
   Build-depends: 
-    base >= 4.5 && < 4.9,
+    base >= 4.5 && < 5,
     QuickCheck > 2 && < 3,
     size-based < 0.2,
     testing-type-modifiers < 0.2
-
-  

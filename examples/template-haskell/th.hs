@@ -1,15 +1,15 @@
-{-#LANGUAGE MagicHash, TemplateHaskell, DeriveDataTypeable, StandaloneDeriving, GeneralizedNewtypeDeriving #-} 
+{-#LANGUAGE MagicHash, TemplateHaskell, DeriveDataTypeable, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 -- BangPatterns, ScopedTypeVariables, ViewPatterns, KindSignatures
 
 
 import Language.Haskell.TH.Syntax
-  ( Exp(..), Pat(..), Stmt(..), Type(..), Dec(..), 
-    Range(..), Lit(..), Kind(..), 
-    Body(..), Guard(..), Con(..), Match(..), 
-    Name(..), mkName, NameFlavour(..), NameSpace(..), 
-    Clause(..), Pragma(..), FamFlavour(..), 
-    Pred(..), TyVarBndr(..), 
-    Foreign, Callconv(..), FunDep(..), 
+  ( Exp(..), Pat(..), Stmt(..), Type(..), Dec(..),
+    Range(..), Lit(..), Kind(..),
+    Body(..), Guard(..), Con(..), Match(..),
+    Name(..), mkName, NameFlavour(..), NameSpace(..),
+    Clause(..), Pragma(..), FamFlavour(..),
+    Pred(..), TyVarBndr(..),
+    Foreign, Callconv(..), FunDep(..),
     Safety(..), Strict(..), InlineSpec(..))
 -- testing-feat
 import Test.Feat
@@ -37,7 +37,7 @@ import Test.SmallCheck
 -- Currently both of these spit out a lot of errors unless we disable a few of the
 -- buggier constructors (which we have done below).
 test_parsesAll = ioAll 15 report_parses
--- | Test (at most) 10000 values of each size up to size 100. 
+-- | Test (at most) 10000 values of each size up to size 100.
 test_parsesBounded = ioBounded 10000 100 report_parses
 
 test_parsesBounded' = ioFeat (boundedWith enumerate 1000) report_parses
@@ -78,7 +78,7 @@ prop_cycle e = case myParse $ pprint (e :: Exp) :: E.ParseResult E.Exp of
 
 -- Haskell parser
 myParse :: String -> E.ParseResult E.Exp
-myParse = E.parseWithMode E.defaultParseMode{E.extensions = 
+myParse = E.parseWithMode E.defaultParseMode{E.extensions =
     [ E.BangPatterns
     , E.ScopedTypeVariables
     , E.ViewPatterns
@@ -90,14 +90,14 @@ myParse = E.parseWithMode E.defaultParseMode{E.extensions =
 
 -}
 
-  
--- We define both SmallCheck and Feat enumerators for comparison.  
+
+-- We define both SmallCheck and Feat enumerators for comparison.
 c1 :: (Serial a, Enumerable a) => (a -> b) -> (Enumerate b, Series b)
 c1 f = (unary f,cons1 f)
 c0 f = (nullary f, cons0 f)
 
 instance (Serial a, Serial b) => Serial (FreePair a b) where
-  series = map Free . (series >< series) 
+  series = map Free . (series >< series)
   coseries = undefined
 
 toSel :: [(Enumerate b, Series b)] -> Enumerate b
@@ -122,23 +122,23 @@ newtype BindN = BindN Name deriving Typeable
 
 
 instance (Enumerable a, Serial a) => Serial (NonEmpty a) where
-  series = toSerial [c1 $ NonEmpty . funcurry (:)] 
-  coseries = undefined 
-  
+  series = toSerial [c1 $ NonEmpty . funcurry (:)]
+  coseries = undefined
+
 instance (Serial a, Infinite a) => Serial (Nat a) where
   series = map (\(N a) -> Nat a) . series
-  coseries = undefined 
+  coseries = undefined
 
 
 newtype CPair a b = CPair {cPair :: (a,b)} deriving Typeable
 
 instance (Enumerable a, Serial a,Enumerable b, Serial b) => Serial (CPair a b) where
-  series = toSerial [c1 $ CPair . funcurry (,)] 
-  coseries = undefined 
+  series = toSerial [c1 $ CPair . funcurry (,)]
+  coseries = undefined
 instance (Serial a,Enumerable a,Enumerable b, Serial b) => Enumerable (CPair a b) where
-  enumerate = toSel [c1 $ CPair . funcurry (,)] 
+  enumerate = toSel [c1 $ CPair . funcurry (,)]
 
-cExp =   
+cExp =
   [c1 $ VarE . lcased
   ,c1 $ ConE . ucased
   ,c1 LitE
@@ -147,7 +147,7 @@ cExp =
   ,c1 $ \(ExpStmt a,o)   -> InfixE Nothing  (either ConE VarE o) (Just a)
   ,c1 $ \(a,o,b) -> InfixE (Just a) (either ConE VarE o) (Just b)
 --  ,c1 $ funcurry $ funcurry $ \a o b -> UInfixE a (VarE o) b
---  ,c1 $ funcurry $ funcurry $ \a o b -> UInfixE a (ConE o) b 
+--  ,c1 $ funcurry $ funcurry $ \a o b -> UInfixE a (ConE o) b
 --  ,c1 ParensE
   ,c1 $ funcurry $ LamE . nonEmpty
   ,c1 $ \(x1,x2,xs) -> TupE (x1:x2:xs)
@@ -171,7 +171,7 @@ instance Serial Exp where
 
 unCase (LcaseN n,e) = (n,e)
 
-cExpStmt = 
+cExpStmt =
   [ c1 $ ExpStmt . VarE
   , c1 $ ExpStmt . ConE
   , c1 $ ExpStmt . LitE
@@ -185,11 +185,11 @@ instance Enumerable ExpStmt where
 instance Serial ExpStmt where
   series = toSerial cExpStmt
   coseries = undefined
-  
-cPat =   
+
+cPat =
   [ c1 LitP
   , c1 $ \(BindN n) -> VarP n
-  , c1 TupP 
+  , c1 TupP
   , c1 $ \(UpcaseName n,ps) -> ConP n ps
   , c1 $ \(p1,UpcaseName n,p2) -> InfixP p1 n p2
   , c1 TildeP
@@ -210,16 +210,16 @@ instance Serial Pat where
 
 
 -- deriveEnumerable ''Match  -- Should remove decs
-cMatch = 
+cMatch =
   [c1 $ funcurry $ funcurry $ \x y ds -> Match x y (map unWhere ds)
   ]
 instance Enumerable Match where
  enumerate = toSel cMatch
 instance Serial Match where
   series = toSerial cMatch
-  coseries = undefined  
-  
-cStmt = 
+  coseries = undefined
+
+cStmt =
   [ c1 $ funcurry BindS
   , c1 $ \(d) -> LetS $ map unWhere $ nonEmpty d
   , c1 $ NoBindS
@@ -240,7 +240,7 @@ instance Serial Name where
   series = toSerial cName
   coseries = undefined
 
-cType = 
+cType =
   [c1 $ funcurry $ funcurry $ (\(x) -> ForallT (nonEmpty x))
   ,c1 $ \(BindN a) -> VarT a
   ,c1 $ \(UpcaseName a) -> ConT a
@@ -259,7 +259,7 @@ instance Serial Type where
 
 -- deriveEnumerable ''Dec
 
-cWhereDec = 
+cWhereDec =
   [ c1 $ \(n,c)  -> WhereDec $ FunD n (nonEmpty c)
   , c1 $ \(n,p,wds) -> WhereDec $ ValD n p (map unWhere wds)
   , c1 $ \(BindN a,b)     -> WhereDec $ SigD a b
@@ -273,8 +273,8 @@ instance Serial WhereDec where
   coseries = undefined
 
 
-  
-cLit = 
+
+cLit =
   [ c1 StringL
   , c1 CharL    -- TODO: Fair char generation
   , c1 $ IntegerL . nat
@@ -288,7 +288,7 @@ instance Serial Lit where
   coseries = undefined
 
 
-cClause = 
+cClause =
  [c1 $ funcurry (funcurry $ \ps bs ds -> Clause ps bs (map unWhere ds))]
 instance Enumerable Clause where
   enumerate = toSel cClause
@@ -301,7 +301,7 @@ instance Serial Clause where
 
 
 -- deriveEnumerable ''Pred
-cPred = 
+cPred =
   [ c1 $ funcurry ClassP
   , c1 $ funcurry EqualP
   ]
@@ -312,7 +312,7 @@ instance Serial Pred where
   coseries = undefined
 
 -- deriveEnumerable ''TyVarBndr
-cTyVarBndr = 
+cTyVarBndr =
   [ c1 $ PlainTV
   , c1 $ funcurry KindedTV
   ]
@@ -323,7 +323,7 @@ instance Serial TyVarBndr where
   coseries = undefined
 
 
-cKind = 
+cKind =
   [c0 StarK
   ,c1 (funcurry ArrowK)
   ]
@@ -345,7 +345,7 @@ instance Serial Body where
   series = toSerial cBody
   coseries = undefined
 
-cGuard = 
+cGuard =
   [c1 $ NormalG
   ,c1 $ \(s) -> PatG (nonEmpty s)
   ]
@@ -354,7 +354,7 @@ instance Enumerable Guard where
 instance Serial Guard where
   series = toSerial cGuard
   coseries = undefined
-  
+
 
 cCallconv = [c0 CCall, c0 StdCall]
 instance Enumerable Callconv where
@@ -370,7 +370,7 @@ instance Enumerable Safety where
 instance Serial Safety where
   series = toSerial cSafety
   coseries = undefined
-  
+
 
 cStrict = [c0 IsStrict, c0 NotStrict, c0 Unpacked]
 instance Enumerable Strict where
@@ -386,7 +386,7 @@ instance Serial InlineSpec where
   series = toSerial cInlineSpec
   coseries = undefined
 
-cOccName = 
+cOccName =
    [ c0 $ OccName "Con"
    , c0 $ OccName "var"
    ]
@@ -402,30 +402,30 @@ instance Enumerable BindN where
 instance Serial BindN where
   series = toSerial cBindN
   coseries = undefined
-  
+
 cLcaseN = [c1 $ \nf -> LcaseN $ Name (OccName "var") nf]
 instance Enumerable LcaseN where
   enumerate = toSel cLcaseN
 instance Serial LcaseN where
   series = toSerial cLcaseN
   coseries = undefined
-  
+
 cUpcaseName = [c1 $ \nf -> UpcaseName $ Name (OccName "Con") nf]
 instance Serial UpcaseName where
   series = toSerial cUpcaseName
   coseries = undefined
 instance Enumerable UpcaseName where
   enumerate = toSel cUpcaseName
-  
+
 cModName = [c0 $ ModName "M", c0 $ ModName "C.M"]
 instance Enumerable ModName where
   enumerate = toSel cModName
 instance Serial ModName where
   series = toSerial cModName
   coseries = undefined
-   
 
-cRange = 
+
+cRange =
   [ c1 FromR
   , c1 (funcurry FromThenR)
   , c1 (funcurry FromToR)
@@ -439,7 +439,7 @@ instance Serial Range where
 
 cNameFlavour = (
   [ c1 NameQ
---    , funcurry $ funcurry NameG 
+--    , funcurry $ funcurry NameG
 --    , \(I# x) -> NameU x
 --    , \(I# x) -> NameL x
   , c0 NameS
@@ -456,5 +456,3 @@ instance Serial NameFlavour where
 
 eExp :: Enumerate Exp
 eExp = toSel cExp
-
-

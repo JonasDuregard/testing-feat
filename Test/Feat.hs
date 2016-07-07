@@ -26,14 +26,14 @@ module Test.Feat(
   ioBounded,
   Report,
   inputRep,
-  
+
   -- * Backwards compatability
   shared,
   nullary,
   unary,
   funcurry,
-  consts,  
-  
+  consts,
+
   ) where
 
 import Test.Feat.Access

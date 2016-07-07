@@ -11,7 +11,7 @@ module Test.Feat.Class {-# DEPRECATED "Use Control.Sized.Enumerable instead" #-}
 
 import Control.Enumerable
 
--- compatability 
+-- compatability
 {-# DEPRECATED nullary "use c0 instead" #-}
 -- nullary :: x -> Memoizable f x
 nullary x = c0 x

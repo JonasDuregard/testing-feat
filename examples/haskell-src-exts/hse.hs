@@ -11,12 +11,12 @@ import Language.Haskell.Exts.Syntax
 import Control.Exception as Ex
 
 -- Welcome to the automatic HSE tester!
--- Things to try while youre here: 
+-- Things to try while youre here:
 --   switch between Exp/Module/Decl etc. as testing types (e.g. TestRoundtrip)
 --   to discover bugs in the various entry-points of the grammar.
 
--- TODOs: add some newtypes and modifiers to deal with syntax type invariants 
--- (such as only enumerating non-empty do-expressions with a statement as last 
+-- TODOs: add some newtypes and modifiers to deal with syntax type invariants
+-- (such as only enumerating non-empty do-expressions with a statement as last
 -- expression).
 --
 -- Catalogue and report all the bugs found.
@@ -27,7 +27,7 @@ main = main_parse 100
 run n = main_parse n
 
 
--- Everything which is produced by the pretty printer and is parseable is 
+-- Everything which is produced by the pretty printer and is parseable is
 -- semantically euivalent to the original.
 type TestRoundtrip = Exp
 main_round n = ioFeat (take n values) (rep_round :: TestRoundtrip -> IO())
@@ -42,7 +42,7 @@ rep_round e = case myParse $ prettyPrint e of
     putStrLn $ "e'(Pretty): "++(prettyPrint e')
     putStrLn ""
   ParseFailed _ err -> return ()
-  
+
 
 
 -- Everything produced by the pretty printer is parseable.
@@ -71,7 +71,7 @@ prop_print :: Pretty a => a -> Bool
 prop_print e = length (prettyPrint e) >= 0
 
 rep_print :: (Show a, Pretty a) => a -> IO ()
-rep_print e = Ex.catch 
+rep_print e = Ex.catch
   (prop_print e `seq` return ())
   (\err -> do
     putStrLn (show  e)
@@ -98,7 +98,7 @@ sureParse :: Parseable a => String -> a
 sureParse s = case myParse s of
   ParseOk a -> a
   ParseFailed _ err -> error err
-  
+
 parse_print :: (Parseable a, Pretty a) => String -> (a,String)
 parse_print s = let a = sureParse s in (a,prettyPrint a)
 
@@ -113,10 +113,9 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   buggy1 = 
     dExcluding 'UnboxedSingleCon . 
     dAll
-  buggy2 = 
-    dExcluding 'PQuasiQuote . 
-    dAll
-    
+  buggy2 =
+    dExcluding 'PQuasiQuote .
+    dAll 
   buggy3 = 
     dExcept 'LCase [| c1 (LCase . nonEmpty) |] .
     dExcept 'Do [| c2 $ \ss e -> Do (ss ++ [Qualifier e]) |] .
@@ -250,8 +249,3 @@ instance Enumerable CName where
 instance Enumerable SrcLoc where
   enumerate = datatype
     [ c0 (SrcLoc "File.hs" 0 0)]
-
-
-
-
-
