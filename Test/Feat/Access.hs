@@ -97,7 +97,7 @@ ioFeat :: [(Integer,[a])] -> Report a -> IO ()
 ioFeat vs f = go vs 0 0 where
   go ((c,xs):xss) s tot = do
     putStrLn $ "--- Testing "++show c++" values at size " ++ show s
-    mapM f xs
+    mapM_ f xs
     go xss (s+1) (tot + c)
   go []           s tot = putStrLn $ "--- Done. Tested "++ show tot++" values"
 
