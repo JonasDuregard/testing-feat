@@ -36,6 +36,7 @@ module Test.Feat.Enumerate (
 -- base
 import Control.Sized
 import Control.Applicative
+import Data.Semigroup
 import Data.Monoid
 import Data.Typeable
 import Data.List(transpose)
@@ -74,6 +75,9 @@ instance Sized Enumerate where
   aconcat  = mconcat
   pair     = cartesian
   fin k    = fromParts [finFin k]
+
+instance Semigroup (Enumerate a) where
+  (<>)  = union
 
 -- | The @'mappend'@ is (disjoint) @'union'@
 instance Monoid (Enumerate a) where
@@ -150,14 +154,17 @@ data RevList a = RevList {fromRev :: [a], reversals :: [[a]]} deriving Show
 instance Functor RevList where
   fmap f = toRev . fmap f . fromRev
 
+instance Semigroup a => Semigroup (RevList a) where
+  (<>) xs ys  = toRev $ zipMon (fromRev xs) (fromRev ys) where
+    zipMon :: Semigroup a => [a] -> [a] -> [a]
+    zipMon (x:xs) (y:ys) = x <> y : zipMon xs ys
+    zipMon xs ys         = xs ++ ys
+
 -- Maybe this should be append instead?
 -- | Padded zip
 instance Monoid a => Monoid (RevList a) where
-  mempty         = toRev[]
-  mappend xs ys  = toRev$ zipMon (fromRev xs) (fromRev ys) where
-    zipMon :: Monoid a => [a] -> [a] -> [a]
-    zipMon (x:xs) (y:ys) = x <> y : zipMon xs ys
-    zipMon xs ys         = xs ++ ys
+  mempty   = toRev[]
+  mappend  = (<>)
 
 -- | Constructs a "Reverse list" variant of a given list. In a sensible
 -- Haskell implementation evaluating any inital segment of
