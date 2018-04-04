@@ -2,6 +2,7 @@
 module Test.Feat.Finite (Finite (..), Index, fromFinite, finFin) where
 
 import Control.Applicative
+import Data.Semigroup
 import Data.Monoid
 
 type Index = Integer
@@ -29,6 +30,9 @@ instance Applicative Finite where
 instance Alternative Finite where
   empty = finEmpty
   (<|>) = finUnion
+
+instance Semigroup (Finite a) where
+  (<>) = finUnion
 
 instance Monoid (Finite a) where
   mempty = finEmpty
