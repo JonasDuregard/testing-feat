@@ -38,6 +38,7 @@ import Test.Feat.Enumerate
 import Control.Enumerable
 -- base
 import Data.List
+import Data.Monoid (mconcat)
 import Data.Ratio((%))
 -- quickcheck
 import Test.QuickCheck
