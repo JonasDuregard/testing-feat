@@ -53,3 +53,5 @@ Library
     QuickCheck > 2 && < 3,
     size-based < 0.2,
     testing-type-modifiers < 0.2
+  if impl(ghc < 8.0)
+    Build-depends: semigroups < 0.19
