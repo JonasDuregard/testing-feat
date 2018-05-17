@@ -14,29 +14,35 @@ Description:         Feat (Functional Enumeration of Algebraic Types) provides
                      should be sufficient for most test usage. There
                      are some small and large example in the tar
                      ball.
+                     .
+                     The generators are provided by the size-based package. This means other libraries that implement the Sized class can use the same generator definitions. One such is the
+                     <https://hackage.haskell.org/package/lazy-search lazy-search package>, that uses laziness to search for values and test properties. This is typically a lot faster than Feat for properties that have preconditions (logical implication), but can not be used for random selection of values. 
 
 License:             BSD3
 License-file:        LICENSE
 Author:              Jonas Duregård
 Maintainer:          jonas.duregard@gmail.com
+Homepage:            https://github.com/JonasDuregard/testing-feat
 Copyright:           Jonas Duregård
 Category:            Testing
 Build-type:          Simple
-
 Extra-source-files:
     examples/template-haskell/th.hs
     examples/haskell-src-exts/hse.hs
     examples/lambda-terms/lambdas.hs
-
-Cabal-version:       >=1.2
-
+Cabal-version:       >=1.6
+source-repository head
+  type:     git
+  location: https://github.com/JonasDuregard/testing-feat
 Library
+
   Hs-source-dirs:       .
   Exposed-modules:
     Test.Feat,
     Test.Feat.Finite,
     Test.Feat.Enumerate,
     Test.Feat.Access
+    Test.Feat.Driver
 
     -- Compatibility
     Test.Feat.Modifiers

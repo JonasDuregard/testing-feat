@@ -1,3 +1,4 @@
+-- This is tested with haskell-src-exts-1.19.1
 {-#LANGUAGE MagicHash, TemplateHaskell, DeriveDataTypeable, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 -- BangPatterns, ScopedTypeVariables, ViewPatterns, KindSignatures
 
@@ -10,16 +11,16 @@ import Language.Haskell.TH.Syntax
     Clause(..), Pragma(..), FamFlavour(..),
     Pred(..), TyVarBndr(..),
     Foreign, Callconv(..), FunDep(..),
-    Safety(..), Strict(..), InlineSpec(..))
+    Safety(..), Strict(..), OccName(..), ModName(..))
 -- testing-feat
 import Test.Feat
-import Test.Feat.Access
 import Test.Feat.Modifiers
+import Control.Enumerable
 -- template-haskell
-import Language.Haskell.TH.Syntax.Internals(OccName(OccName), ModName(ModName), PkgName)
+-- import Language.Haskell.TH.Syntax.Internals(OccName(OccName), ModName(ModName), PkgName)
 import Language.Haskell.TH.Ppr(pprint,Ppr)
 -- haskell-src-meta
-import Language.Haskell.Meta(toExp)
+-- import Language.Haskell.Meta(toExp)
 -- haskell-src-exts
 import qualified Language.Haskell.Exts as E
 -- quickcheck
@@ -29,8 +30,44 @@ import Data.Typeable(Typeable)
 import Data.Ord
 import Data.List
 -- smallcheck
-import Test.SmallCheck.Series hiding (Nat)
-import Test.SmallCheck
+
+-- import Test.SmallCheck.Series hiding (Nat)
+-- import Test.SmallCheck
+
+
+main = testOptions defOptions{oMaxCounter=Just 10} prop_parses
+
+type Ex = (E.Exp E.SrcSpanInfo)
+
+
+-- Haskell parser
+myParse :: String -> E.ParseResult Ex
+myParse = E.parseWithMode E.defaultParseMode{E.extensions =
+     (map E.EnableExtension [E.ExplicitForAll, E.ConstraintKinds])
+{-    [ E.BangPatterns
+    , E.ScopedTypeVariables
+    , E.ViewPatterns
+    , E.KindSignatures
+    , E.ExplicitForAll
+    , E.TypeFamilies
+    ]-}
+    }
+
+-- | Newtype to make error reporting look nicer
+newtype PPR a = PPR a
+
+instance (Show a, Ppr a) => Show (PPR a) where
+  show (PPR a) = show a ++ "\n" ++ pprint a ++ "\n" ++errormsg a where
+    errormsg x = case myParse (pprint x) of
+      E.ParseFailed _ s -> s
+      E.ParseOk _     -> "OK"
+instance Enumerable a => Enumerable (PPR a) where
+  enumerate = share (c1 PPR) 
+
+-- | Every pretty-printer result should be par
+prop_parses (PPR e) = case myParse $ pprint (e :: Exp) of
+  E.ParseOk _       -> True
+  E.ParseFailed _ s -> False
 
 {-
 
@@ -76,35 +113,10 @@ prop_cycle e = case myParse $ pprint (e :: Exp) :: E.ParseResult E.Exp of
 
 
 
--- Haskell parser
-myParse :: String -> E.ParseResult E.Exp
-myParse = E.parseWithMode E.defaultParseMode{E.extensions =
-    [ E.BangPatterns
-    , E.ScopedTypeVariables
-    , E.ViewPatterns
-    , E.KindSignatures
-    , E.ExplicitForAll
-    , E.TypeFamilies
-    ]}
+
 
 
 -}
-
-
--- We define both SmallCheck and Feat enumerators for comparison.
-c1 :: (Serial a, Enumerable a) => (a -> b) -> (Enumerate b, Series b)
-c1 f = (unary f,cons1 f)
-c0 f = (nullary f, cons0 f)
-
-instance (Serial a, Serial b) => Serial (FreePair a b) where
-  series = map Free . (series >< series)
-  coseries = undefined
-
-toSel :: [(Enumerate b, Series b)] -> Enumerate b
-toSel xs = consts $ map fst xs
-
-toSerial :: [(Enumerate b, Series b)] -> Series b
-toSerial xs = foldl1 (\/) $ map snd xs
 
 
 
@@ -121,338 +133,237 @@ newtype UpcaseName = UpcaseName {ucased :: Name} deriving Typeable
 newtype BindN = BindN Name deriving Typeable
 
 
-instance (Enumerable a, Serial a) => Serial (NonEmpty a) where
-  series = toSerial [c1 $ NonEmpty . funcurry (:)]
-  coseries = undefined
-
-instance (Serial a, Infinite a) => Serial (Nat a) where
-  series = map (\(N a) -> Nat a) . series
-  coseries = undefined
-
-
 newtype CPair a b = CPair {cPair :: (a,b)} deriving Typeable
 
-instance (Enumerable a, Serial a,Enumerable b, Serial b) => Serial (CPair a b) where
-  series = toSerial [c1 $ CPair . funcurry (,)]
-  coseries = undefined
-instance (Serial a,Enumerable a,Enumerable b, Serial b) => Enumerable (CPair a b) where
-  enumerate = toSel [c1 $ CPair . funcurry (,)]
+instance (Enumerable a,Enumerable b) => Enumerable (CPair a b) where
+  enumerate = datatype [c1 CPair]
 
-cExp =
-  [c1 $ VarE . lcased
-  ,c1 $ ConE . ucased
-  ,c1 LitE
-  ,c1 $ funcurry AppE
-  ,c1 $ \(ExpStmt a,o)   -> InfixE (Just a) (either ConE VarE o) Nothing
-  ,c1 $ \(ExpStmt a,o)   -> InfixE Nothing  (either ConE VarE o) (Just a)
-  ,c1 $ \(a,o,b) -> InfixE (Just a) (either ConE VarE o) (Just b)
---  ,c1 $ funcurry $ funcurry $ \a o b -> UInfixE a (VarE o) b
---  ,c1 $ funcurry $ funcurry $ \a o b -> UInfixE a (ConE o) b
---  ,c1 ParensE
-  ,c1 $ funcurry $ LamE . nonEmpty
-  ,c1 $ \(x1,x2,xs) -> TupE (x1:x2:xs)
---  ,c1 UnboxedTupE
-  ,c1 $ funcurry $ funcurry CondE
-  ,c1 $ \(d,ds,e) -> LetE (map unWhere $ d:ds) e -- DISABLED BUGGY EMPTY LETS
-  ,c1 $ \(e,NonEmpty m) -> CaseE e m
-  ,c1 $ \(e,ss) -> DoE (ss ++ [NoBindS e])
-  ,c1 $ (\((p,e),(CPair (xs,e'))) -> CompE ([BindS p e] ++ xs ++ [NoBindS e']))
---  ,c1 ArithSeqE -- BUGGY!
-  ,c1 ListE
---  ,c1 $ funcurry SigE -- BUGGY!
-  ,c1 $ \(e,x) -> RecConE e $ map unCase (nonEmpty x)
-  ,c1 $ \(e,fe) -> RecUpdE e $ map unCase (nonEmpty fe)
-  ]
 instance Enumerable Exp where
-  enumerate = toSel cExp
-instance Serial Exp where
-  series = toSerial cExp
-  coseries = undefined
+  enumerate = datatype
+      [c1 $ VarE . lcased
+      ,c1 $ ConE . ucased
+      ,c1 LitE
+      ,c2 AppE
+      ,c1 $ \(ExpStmt a,o)   -> InfixE (Just a) (either ConE VarE o) Nothing
+      ,c1 $ \(ExpStmt a,o)   -> InfixE Nothing  (either ConE VarE o) (Just a)
+      ,c1 $ \(a,o,b) -> InfixE (Just a) (either ConE VarE o) (Just b)
+    --  ,c3 $ \a o b -> UInfixE a (VarE o) b
+    --  ,c3 $ \a o b -> UInfixE a (ConE o) b
+    --  ,c1 ParensE
+      ,c2 $ LamE . nonEmpty
+      ,c1 $ \(x1,x2,xs) -> TupE (x1:x2:xs)
+    --  ,c1 UnboxedTupE
+      ,c3 CondE
+      ,c1 $ \(d,ds,e) -> LetE (map unWhere $ d:ds) e -- DISABLED BUGGY EMPTY LETS
+      ,c1 $ \(e,NonEmpty m) -> CaseE e m
+      ,c1 $ \(ExpStmt e,ss) -> DoE (ss ++ [NoBindS e])
+      ,c1 $ (\((p,e),(CPair (xs,e'))) -> CompE ([BindS p e] ++ xs ++ [NoBindS e']))
+    --  ,c1 ArithSeqE -- BUGGY!
+      ,c1 ListE
+    --  ,c2 SigE -- BUGGY!
+      ,c1 $ \(e,x) -> RecConE e $ map unCase (nonEmpty x)
+      ,c1 $ \(e,fe) -> RecUpdE e $ map unCase (nonEmpty fe)
+      ]
 
 unCase (LcaseN n,e) = (n,e)
 
-cExpStmt =
-  [ c1 $ ExpStmt . VarE
-  , c1 $ ExpStmt . ConE
-  , c1 $ ExpStmt . LitE
-  , c1 $ \(e1,e2) -> ExpStmt (AppE e1 e2)
-  , c1 $ ExpStmt . LitE
-  -- , c1 parS
-  -- Removed paralell comprehensions
-  ]
 instance Enumerable ExpStmt where
- enumerate = toSel cExpStmt
-instance Serial ExpStmt where
-  series = toSerial cExpStmt
-  coseries = undefined
+  enumerate = datatype
+      [ c1 $ ExpStmt . VarE
+      , c1 $ ExpStmt . ConE
+      -- , c1 $ ExpStmt . LitE
+      , c1 $ \(e1,e2) -> ExpStmt (AppE e1 e2)
+      -- , c1 $ ExpStmt . LitE
+      -- , c1 parS
+      -- Removed paralell comprehensions
+      ]
 
-cPat =
-  [ c1 LitP
-  , c1 $ \(BindN n) -> VarP n
-  , c1 TupP
-  , c1 $ \(UpcaseName n,ps) -> ConP n ps
-  , c1 $ \(p1,UpcaseName n,p2) -> InfixP p1 n p2
-  , c1 TildeP
---  , c1 $ \(LcaseN n) -> BangP $ VarP n
-  , c1 $ \(BindN n,p) -> AsP n p
-  , c0 WildP
-  , c1 $ \(UpcaseName e,x) -> RecP e (map (\(BindN n, p) -> (n,p)) (nonEmpty x))
-  , c1 ListP
---  , c1 $ funcurry SigP -- BUGGY!
---  , c1 $ funcurry ViewP -- BUGGY!
-  ]
+
 instance Enumerable Pat where
- enumerate = toSel cPat
-instance Serial Pat where
-  series = toSerial cPat
-  coseries = undefined
-
+  enumerate = datatype
+      [ c1 LitP
+      , c1 $ \(BindN n) -> VarP n
+      , c1 TupP
+      , c1 $ \(UpcaseName n,ps) -> ConP n ps
+      , c1 $ \(p1,UpcaseName n,p2) -> InfixP p1 n p2
+      , c1 TildeP
+    --  , c1 $ \(LcaseN n) -> BangP $ VarP n
+      , c1 $ \(BindN n,p) -> AsP n p
+      , c0 WildP
+      , c1 $ \(UpcaseName e,x) -> RecP e (map (\(BindN n, p) -> (n,p)) (nonEmpty x))
+      , c1 ListP
+    --  , c2 SigP -- BUGGY!
+    --  , c2 ViewP -- BUGGY!
+      ]
 
 
 -- deriveEnumerable ''Match  -- Should remove decs
-cMatch =
-  [c1 $ funcurry $ funcurry $ \x y ds -> Match x y (map unWhere ds)
-  ]
 instance Enumerable Match where
- enumerate = toSel cMatch
-instance Serial Match where
-  series = toSerial cMatch
-  coseries = undefined
+ enumerate = datatype
+      [c3 $ \x y ds -> Match x y (map unWhere ds)
+      ]
 
-cStmt =
-  [ c1 $ funcurry BindS
-  , c1 $ \(d) -> LetS $ map unWhere $ nonEmpty d
-  , c1 $ NoBindS
-  -- , c1 parS
-  -- Removed paralell comprehensions
-  ]
 instance Enumerable Stmt where
- enumerate = toSel cStmt
-instance Serial Stmt where
-  series = toSerial cStmt
-  coseries = undefined
+  enumerate = datatype
+      [ c2 BindS
+      , c1 $ \(d) -> LetS $ map unWhere $ nonEmpty d
+      , c1 $ NoBindS
+      -- , c1 parS
+      -- Removed paralell comprehensions
+      ]
 
 
-cName = [ c1 (funcurry Name) ]
+
 instance Enumerable Name where
- enumerate = toSel cName
-instance Serial Name where
-  series = toSerial cName
-  coseries = undefined
+ enumerate = datatype [ c2 Name ]
 
-cType =
-  [c1 $ funcurry $ funcurry $ (\(x) -> ForallT (nonEmpty x))
-  ,c1 $ \(BindN a) -> VarT a
-  ,c1 $ \(UpcaseName a) -> ConT a
-  ,c1 $ \n -> TupleT (abs n)
-  ,c0 ArrowT
-  ,c0 ListT
-  ,c1 $ funcurry AppT
-  -- ,c1 $ funcurry SigT -- BUGGY!
-  ]
+
+
 instance Enumerable Type where
- enumerate = toSel cType
-instance Serial Type where
-  series = toSerial cType
-  coseries = undefined
+ enumerate = datatype cType where
+  cType =
+    [c3 $ (\(x) -> ForallT (map (PlainTV . lcased) $ nonEmpty x))
+    ,c1 $ \(BindN a) -> VarT a
+    ,c1 $ \(UpcaseName a) -> ConT a
+    ,c1 $ \n -> TupleT (abs n)
+    ,c0 ArrowT
+    ,c0 ListT
+    ,c2 AppT
+    -- ,c2 SigT -- BUGGY!
+    ]
+
 
 
 -- deriveEnumerable ''Dec
 
-cWhereDec =
-  [ c1 $ \(n,c)  -> WhereDec $ FunD n (nonEmpty c)
-  , c1 $ \(n,p,wds) -> WhereDec $ ValD n p (map unWhere wds)
-  , c1 $ \(BindN a,b)     -> WhereDec $ SigD a b
-  -- , c1 $ WhereDec . PragmaD -- Removed pragmas
-  -- , c1 parS -- Removed paralell comprehensions
-  ]
 instance Enumerable WhereDec where
-  enumerate = toSel cWhereDec
-instance Serial WhereDec where
-  series = toSerial cWhereDec
-  coseries = undefined
+  enumerate = datatype
+    [ c1 $ \(n,c)  -> WhereDec $ FunD n (nonEmpty c)
+    , c1 $ \(n,p,wds) -> WhereDec $ ValD n p (map unWhere wds)
+    , c1 $ \(BindN a,b)     -> WhereDec $ SigD a b
+    -- , c1 $ WhereDec . PragmaD -- Removed pragmas
+    -- , c1 parS -- Removed paralell comprehensions
+    ]
 
 
 
-cLit =
-  [ c1 StringL
-  , c1 CharL    -- TODO: Fair char generation
-  , c1 $ IntegerL . nat
-  -- , c1 RationalL -- BUGGY!
-  -- Removed primitive litterals
-  ]
+
 instance Enumerable Lit where
-  enumerate = toSel cLit
-instance Serial Lit where
-  series = toSerial cLit
-  coseries = undefined
-
-
-cClause =
- [c1 $ funcurry (funcurry $ \ps bs ds -> Clause ps bs (map unWhere ds))]
+  enumerate = datatype
+    [ c1 StringL
+    , c1 CharL    -- TODO: Fair char generation
+    , c1 $ IntegerL . nat
+    -- , c1 RationalL -- BUGGY!
+    -- Removed primitive litterals
+    ]
+  
 instance Enumerable Clause where
-  enumerate = toSel cClause
-instance Serial Clause where
-  series = toSerial cClause
-  coseries = undefined
+  enumerate = datatype
+    [c3 $ \ps bs ds -> Clause ps bs (map unWhere ds)]
 
 
 
 
 
 -- deriveEnumerable ''Pred
-cPred =
-  [ c1 $ funcurry ClassP
-  , c1 $ funcurry EqualP
-  ]
-instance Enumerable Pred where
-  enumerate = toSel cPred
-instance Serial Pred where
-  series = toSerial cPred
-  coseries = undefined
+--cPred =
+--  [ c2 ClassP
+--  , c2 EqualP
+--  ]
+--instance Enumerable Pred where
+--  enumerate = datatype cPred
+
 
 -- deriveEnumerable ''TyVarBndr
-cTyVarBndr =
-  [ c1 $ PlainTV
-  , c1 $ funcurry KindedTV
-  ]
 instance Enumerable TyVarBndr where
-  enumerate = toSel cTyVarBndr
-instance Serial TyVarBndr where
-  series = toSerial cTyVarBndr
-  coseries = undefined
+  enumerate = datatype
+    [ c1 PlainTV
+    , c2 KindedTV
+    ]
 
 
-cKind =
-  [c0 StarK
-  ,c1 (funcurry ArrowK)
-  ]
-instance Enumerable Kind where
-  enumerate = toSel cKind
-instance Serial Kind where
-  series = toSerial cKind
-  coseries = undefined
+--cKind =
+--  [c0 StarK
+--  ,c2 ArrowK
+--  ]
+--instance Enumerable Kind where
+--  enumerate = datatype cKind
 
 
-cBody =
-  [ c1 NormalB
-  , c1 $ \(x) -> GuardedB (nonEmpty x)
-  -- Removed primitive litterals
-  ]
 instance Enumerable Body where
- enumerate = toSel cBody
-instance Serial Body where
-  series = toSerial cBody
-  coseries = undefined
-
-cGuard =
-  [c1 $ NormalG
-  ,c1 $ \(s) -> PatG (nonEmpty s)
-  ]
+ enumerate = datatype
+    [ c1 NormalB
+    , c1 $ \(x) -> GuardedB (nonEmpty x)
+    -- Removed primitive litterals
+    ]
+  
 instance Enumerable Guard where
- enumerate = toSel cGuard
-instance Serial Guard where
-  series = toSerial cGuard
-  coseries = undefined
+ enumerate = datatype
+   [c1 $ NormalG
+   ,c1 $ \(s) -> PatG (nonEmpty s)
+   ]
 
-
-cCallconv = [c0 CCall, c0 StdCall]
 instance Enumerable Callconv where
-  enumerate = toSel cCallconv
-instance Serial Callconv where
-  series = toSerial cCallconv
-  coseries = undefined
+  enumerate = datatype [c0 CCall, c0 StdCall]
 
 
-cSafety = [c0 Unsafe, c0 Safe, c0 Interruptible]
+
+
 instance Enumerable Safety where
-  enumerate = toSel cSafety
-instance Serial Safety where
-  series = toSerial cSafety
-  coseries = undefined
+  enumerate = datatype 
+    [c0 Unsafe, c0 Safe, c0 Interruptible]
 
 
-cStrict = [c0 IsStrict, c0 NotStrict, c0 Unpacked]
-instance Enumerable Strict where
-  enumerate = toSel cStrict
-instance Serial Strict where
-  series = toSerial cStrict
-  coseries = undefined
+--cStrict = [c0 IsStrict, c0 NotStrict, c0 Unpacked]
+--instance Enumerable Strict where
+--  enumerate = datatype cStrict
 
-cInlineSpec = [c1 (funcurry $ funcurry $ InlineSpec)]
-instance Enumerable InlineSpec where
-  enumerate = toSel cInlineSpec
-instance Serial InlineSpec where
-  series = toSerial cInlineSpec
-  coseries = undefined
+--cInlineSpec = [c3 $ InlineSpec)]
+--instance Enumerable InlineSpec where
+--  enumerate = datatype cInlineSpec
 
-cOccName =
+instance Enumerable OccName where
+  enumerate = datatype
    [ c0 $ OccName "Con"
    , c0 $ OccName "var"
    ]
-instance Enumerable OccName where
-  enumerate = toSel cOccName
-instance Serial OccName where
-  series = toSerial cOccName
-  coseries = undefined
 
-cBindN = [c0 $ BindN $ Name (OccName "var") NameS]
 instance Enumerable BindN where
-  enumerate = toSel cBindN
-instance Serial BindN where
-  series = toSerial cBindN
-  coseries = undefined
+  enumerate = datatype
+    [c0 $ BindN $ Name (OccName "var") NameS]
 
-cLcaseN = [c1 $ \nf -> LcaseN $ Name (OccName "var") nf]
 instance Enumerable LcaseN where
-  enumerate = toSel cLcaseN
-instance Serial LcaseN where
-  series = toSerial cLcaseN
-  coseries = undefined
+  enumerate = datatype 
+    [c1 $ \nf -> LcaseN $ Name (OccName "var") nf]
 
-cUpcaseName = [c1 $ \nf -> UpcaseName $ Name (OccName "Con") nf]
-instance Serial UpcaseName where
-  series = toSerial cUpcaseName
-  coseries = undefined
 instance Enumerable UpcaseName where
-  enumerate = toSel cUpcaseName
+  enumerate = datatype
+    [c1 $ \nf -> UpcaseName $ Name (OccName "Con") nf]
 
-cModName = [c0 $ ModName "M", c0 $ ModName "C.M"]
 instance Enumerable ModName where
-  enumerate = toSel cModName
-instance Serial ModName where
-  series = toSerial cModName
-  coseries = undefined
+  enumerate = datatype
+    [c0 $ ModName "M", c0 $ ModName "C.M"]
 
-
-cRange =
-  [ c1 FromR
-  , c1 (funcurry FromThenR)
-  , c1 (funcurry FromToR)
-  , c1 (funcurry $ funcurry FromThenToR)
-  ]
 instance Enumerable Range where
-  enumerate = toSel cRange
-instance Serial Range where
-  series = toSerial cRange
-  coseries = undefined
+  enumerate = datatype 
+    [ c1 FromR
+    , c2 FromThenR
+    , c2 FromToR
+    , c3 FromThenToR
+    ]
 
-cNameFlavour = (
-  [ c1 NameQ
---    , funcurry $ funcurry NameG
+
+instance Enumerable NameFlavour where
+  enumerate = datatype
+    [c1 NameQ
+--    , c3 NameG
 --    , \(I# x) -> NameU x
 --    , \(I# x) -> NameL x
-  , c0 NameS
-  ])
-instance Enumerable NameFlavour where
-  enumerate = toSel cNameFlavour
-instance Serial NameFlavour where
-  series = toSerial cNameFlavour
-  coseries = undefined
+    , c0 NameS
+    ]
 
 
 -- main = test_parsesBounded
 -- or test_parsesAll, but that takes much longer to find bugs
 
-eExp :: Enumerate Exp
-eExp = toSel cExp
+

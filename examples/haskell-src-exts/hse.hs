@@ -2,6 +2,7 @@
 import Test.Feat
 -- import Test.Feat.Class
 import Test.Feat.Modifiers
+import Test.Feat.Driver
 
 import Control.Enumerable
 
@@ -30,7 +31,7 @@ run n = main_parse n
 -- Everything which is produced by the pretty printer and is parseable is
 -- semantically euivalent to the original.
 type TestRoundtrip = Exp
-main_round n = ioFeat (take n values) (rep_round :: TestRoundtrip -> IO())
+main_round n = undefined
 
 rep_round :: (Eq a,Parseable a, Show a, Pretty a) => a -> IO ()
 rep_round e = case myParse $ prettyPrint e of
@@ -44,27 +45,33 @@ rep_round e = case myParse $ prettyPrint e of
   ParseFailed _ err -> return ()
 
 
+instance Enumerable SrcSpanInfo where
+  enumerate = datatype [c0 $ SrcSpanInfo (SrcSpan "M.hs" 0 0 0 0) []]
 
 -- Everything produced by the pretty printer is parseable.
-type TestParse = Module
-main_parse n = ioFeat (take n values) (rep_parse :: TestParse -> IO())
+type TestParse = Module SrcSpanInfo
+main_parse n = do 
+   res <- test prop_parse
+   mapM (putStr . rep_parse) (counterexamples res)
 
-rep_parse :: (Parseable a, Show a, Pretty a) => a -> IO ()
+
+rep_parse :: (Parseable a, Show a, Pretty a) => a -> String
 rep_parse e = case myParse $ prettyPrint e of
-  ParseOk e' -> const (return ()) (e' `asTypeOf` e)
-  ParseFailed _ err -> do
-    putStrLn (show  e)
-    putStrLn (prettyPrint e)
-    putStrLn err
-    putStrLn ""
+  ParseOk e' -> const "" (e' `asTypeOf` e)
+  ParseFailed _ err -> unlines
+    [(show  e)
+    ,(prettyPrint e)
+    ,err]
+
+prop_parse :: TestParse -> Bool
+prop_parse e = case myParse $ prettyPrint e of
+  ParseOk e' -> const True (e' `asTypeOf` e)
+  ParseFailed _ err -> False
 
 
+{-
 -- The pretty printer doesnt fail, for testing the enumerators.
 type TestPrint = Module
-
-main_print n = ioFeat (take n values) (rep_print :: TestPrint -> IO())
-
-main_print' n = ioFeat (take n $ bounded 100000) (rep_print :: TestPrint -> IO())
 
 
 prop_print :: Pretty a => a -> Bool
@@ -78,6 +85,7 @@ rep_print e = Ex.catch
     if show (err::SomeException) == "user interrupt" then undefined else return ()
     putStrLn $ show (err::SomeException)
     putStrLn "")
+-}
 
 myParse :: Parseable a => String ->  ParseResult a
 myParse = parseWithMode defaultParseMode{
@@ -117,14 +125,14 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
     dExcluding 'PQuasiQuote .
     dAll 
   buggy3 = 
-    dExcept 'LCase [| c1 (LCase . nonEmpty) |] .
-    dExcept 'Do [| c2 $ \ss e -> Do (ss ++ [Qualifier e]) |] .
+    dExcept 'LCase [| c2 (\a -> LCase a . nonEmpty) |] .
+    dExcept 'Do [| c3 $ \a ss e -> Do a (ss ++ [Qualifier a e]) |] .
   
     dExcluding 'XPcdata .
     dExcluding 'XExpTag .
     dExcluding 'XChildTag .
-    dExcept 'XPcdata [| c1 $ XPcdata . nonEmpty |] .
-    dExcept 'MultiIf [| c1 $ MultiIf . nonEmpty |] .
+    dExcept 'XPcdata [| c2 $ \a -> XPcdata a . nonEmpty |] .
+    dExcept 'MultiIf [| c2 $ \a -> MultiIf a . nonEmpty |] .
     dAll
   
   
@@ -133,7 +141,7 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
     dAll
     
   fixlit = 
-    dExcept 'PrimWord [| c1 (\x -> PrimWord (toInteger (x :: Word))) |] .
+    dExcept 'PrimWord [| c2 (\a x -> PrimWord a (toInteger (x :: Word)) (show x)) |] .
     dAll
     
 
@@ -143,9 +151,6 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   dExcluding 'AnnModulePragma $ dExcluding 'LanguagePragma
    -- dExcept 'LanguagePragma [|c2 $ \x -> LanguagePragma x . nonEmpty|] 
     $ dAll ''ModulePragma,
-  dExcept 'WarnText [|c1 $ WarnText . nonEmpty|]
-    $ dExcept 'DeprText [|c1 $ DeprText . nonEmpty|]  
-    $ dAll ''WarningText,
   dAll ''ImportDecl,
   fixdecs ''Decl,
   dAll ''Tool,
@@ -204,46 +209,61 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   dAll ''PatternSynDirection,
   dAll ''Overlap,
   dAll ''Namespace,
-  dAll ''BooleanFormula
+  dAll ''BooleanFormula,
+  dAll ''ImportSpecList,
+  dAll ''DeclHead,
+  dAll ''ResultSig,
+  dAll ''InjectivityInfo,
+  dAll ''Context,
+  dAll ''Deriving,
+  dAll ''InstRule,
+  dAll ''Unpackedness,
+  dAll ''FieldDecl, 
+  dAll ''InstHead
   ])
 
-instance Enumerable ExportSpec where
-  enumerate = datatype [ c1 $ EVar . nonSpecial
-                       , c2 $ \x -> EAbs x . nonSpecial
+
+
+instance Enumerable a => Enumerable (ModuleHead a) where
+  enumerate = datatype [c1 $ \a -> ModuleHead a (ModuleName a "M") Nothing Nothing]
+
+instance Enumerable a => Enumerable (ExportSpec a) where
+  enumerate = datatype [ c2 $ \a -> EVar a . nonSpecial
+                       , c3 $ \a x -> EAbs a x . nonSpecial
                        -- , c1 $ EThingAll . nonSpecial
                        -- , c2 $ EThingWith . nonSpecial
-                       , c1 $ EModuleContents
+                       , c2 $ EModuleContents
                        ]
 
 -- newtype Upper = Upper {upper :: QName}
 -- instance Enumerable Upper where
 --  enumerate = datatype [c2 Qual
 
-newtype NonSpecialName = NonSpecialName {nonSpecial :: QName}
-instance Enumerable NonSpecialName where
-  enumerate = datatype [fmap NonSpecialName $ c2 Qual
-                       ,fmap NonSpecialName $ c1 UnQual
+newtype NonSpecialName a = NonSpecialName {nonSpecial :: QName a}
+instance Enumerable a => Enumerable (NonSpecialName a) where
+  enumerate = datatype [fmap NonSpecialName $ c3 Qual
+                       ,fmap NonSpecialName $ c2 UnQual
                        ]
 
 
-instance Enumerable ModuleName where 
+instance Enumerable a => Enumerable (ModuleName a) where 
   enumerate = datatype 
-    [ c0 $ ModuleName "M"
-    , c0 $ ModuleName "C.M"
+    [ c1 $ \a -> ModuleName a "M"
+    , c1 $ \a -> ModuleName a "C.M"
     ]
 
 -- Will probably need to be broken into constructor/variable/symbol names
-instance Enumerable Name where
+instance Enumerable a => Enumerable (Name a) where
   enumerate = datatype 
-    [ c0 $ Ident "C"
-    , c0 $ Ident "v"
+    [ c1 $ \a -> Ident a "C"
+    , c1 $ \a -> Ident a "v"
 --    , c0 $ Symbol "*"
     ]
 
-instance Enumerable CName where
+instance Enumerable a => Enumerable (CName a) where
   enumerate = datatype
-    [ c0 $ VarName (Ident "v")
-    , c0 $ ConName (Ident "C")
+    [ c1 $ \a -> VarName a (Ident a "v")
+    , c1 $ \a -> ConName a (Ident a "C")
     ]
 
 instance Enumerable SrcLoc where

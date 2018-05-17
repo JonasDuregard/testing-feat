@@ -1,5 +1,5 @@
 
-module Test.Feat.Class {-# DEPRECATED "Use Control.Sized.Enumerable instead" #-}
+module Test.Feat.Class {-# DEPRECATED "Use Control.Enumerable instead" #-}
   ( Enumerable(..)
   , nullary
   , unary
