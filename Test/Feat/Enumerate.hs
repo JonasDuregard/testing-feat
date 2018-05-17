@@ -37,7 +37,7 @@ module Test.Feat.Enumerate (
 import Control.Sized
 import Control.Applicative
 import Data.Semigroup
-import Data.Monoid
+import Data.Monoid hiding ((<>))
 import Data.Typeable
 import Data.List(transpose)
 import Test.Feat.Finite
@@ -162,7 +162,7 @@ instance Semigroup a => Semigroup (RevList a) where
 
 -- Maybe this should be append instead?
 -- | Padded zip
-instance Monoid a => Monoid (RevList a) where
+instance (Monoid a, Semigroup a) => Monoid (RevList a) where
   mempty   = toRev[]
   mappend  = (<>)
 
