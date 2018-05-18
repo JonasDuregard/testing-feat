@@ -5,14 +5,13 @@
 module Test.Feat.Driver(
    -- * Simple test driver
    test
-   , Result
-   , counterexamples
    -- * Test driver with show/readable options
    , testOptions
    , Options(..)
    , defOptions
    -- * Extremely flexible test driver
    , testFlex
+   , Result
    , FlexibleOptions(..)
    , FlexOptions(..)
    , defFlex
@@ -44,22 +43,18 @@ type FlexibleOptions a = IO (FlexOptions a)
 
 -- | FlexOptions
 data FlexOptions a = FlexOptions 
-   { fIO      :: IO Bool     -> IO (Result a) -- ^ The whole execution of the test is sent through this function.
+   { fIO      :: IO Bool     -> IO (Result,[a]) -- ^ The whole execution of the test is sent through this function.
    , fReport  :: a           -> IO Bool -- ^ Applied to each found counterexample, return False to stop testing
    , fOutput  :: String      -> IO () -- ^ Print text
    , fProcess :: Enumerate a -> Enumerate a -- ^ Applied to the enumeration before running
    , fEnum    :: Enumerate a -- ^ The base enumeration to use, before applying @fProcess@.
    }
 
-data Result a = Exhausted [a] -- ^ Reached max size
-              | Quota [a]     -- ^ Reached max number of counterexamples
-              | TimedOut [a]
-              deriving Show
-
-counterexamples :: Result a -> [a]
-counterexamples (Exhausted xs) = xs
-counterexamples (Quota xs) = xs
-counterexamples (TimedOut xs) = xs
+data Result = Exhausted -- ^ Reached max size
+            | Quota     -- ^ Reached max number of counterexamples
+            | TimedOut
+            | Other     
+            deriving Show
 
 -- | 60 seconds timeout, maximum size of 100, bound of 100000 tests per size
 defOptions :: Options
@@ -96,7 +91,7 @@ toFlexWith e o = do
       doIO io = do
         mb <- maybe (fmap Just io) (\t -> timeout (t*1000000) io) (oTimeoutSec o)
         res <- readIORef res 
-        return $ maybe (TimedOut res) (\b -> if b then Exhausted res else Quota res) mb
+        return $ maybe (TimedOut,res) (\b -> if b then (Exhausted,res) else (Quota,res)) mb
       skip  = maybe id (\(i,n) e -> skipping e i n) (oSkipping o)
       bound = maybe id (\n e -> bounded e n) (oBounded o)
       sizes = maybe id (\bs e -> sizeRange e bs) (oSizeFromTo o)
@@ -108,16 +103,18 @@ toFlexWith e o = do
       , fEnum = e
       }
 
--- | Test with default options ('defOptions').
-test :: Enumerable a => (a -> Bool) -> IO (Result a)
-test = testFlex defFlex
+-- | Test with default options ('defOptions'). Returns a list of counterexamples
+test :: Enumerable a => (a -> Bool) -> IO [a]
+test = testOptions defOptions
 
--- | Test with basic options. 
-testOptions :: Enumerable a => Options -> (a -> Bool) -> IO (Result a)
-testOptions = testFlex . toFlex
+-- | Test with basic options. Returns a list of counterexamples.
+testOptions :: Enumerable a => Options -> (a -> Bool) -> IO [a]
+testOptions o p = fmap snd $ testFlex fo p
+  where 
+    fo = toFlex o
 
 -- | The most flexible test driver, can be configured to behave in almost any way.
-testFlex :: FlexibleOptions a -> (a -> Bool) -> IO (Result a)
+testFlex :: FlexibleOptions a -> (a -> Bool) -> IO (Result, [a])
 testFlex ioOp p = do
   op <- ioOp
   let e = fProcess op (fEnum op)
@@ -125,7 +122,13 @@ testFlex ioOp p = do
       runSize k (n,cs) = do 
         fOutput op $ "*** Searching in " ++ show n ++ " values of size " ++ show k ++ "\n"
         doWhile (map (\x -> fOutput op "Counterexample found!\n" >> fReport op x) cs) 
-  fIO op ((doWhile $ zipWith runSize [0..] lazyResult))
+  rxs@(r,_) <- fIO op ((doWhile $ zipWith runSize [0..] lazyResult))
+  case r of 
+     Exhausted -> fOutput op "Search space exhausted\n"
+     TimedOut   -> fOutput op "Timed out\n"
+     _         -> return ()
+  return rxs
+
 
 doWhile :: [IO Bool] -> IO Bool
 doWhile [] = return True
