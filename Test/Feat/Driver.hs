@@ -11,7 +11,7 @@ module Test.Feat.Driver(
    , defOptions
    -- * Extremely flexible test driver
    , testFlex
-   , Result
+   , Result(..)
    , FlexibleOptions(..)
    , FlexOptions(..)
    , defFlex
@@ -125,7 +125,7 @@ testFlex ioOp p = do
   rxs@(r,_) <- fIO op ((doWhile $ zipWith runSize [0..] lazyResult))
   case r of 
      Exhausted -> fOutput op "Search space exhausted\n"
-     TimedOut   -> fOutput op "Timed out\n"
+     TimedOut  -> fOutput op "Timed out\n"
      _         -> return ()
   return rxs
 

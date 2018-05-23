@@ -1,5 +1,5 @@
 Name:                testing-feat
-Version:             1.0.1.0
+Version:             1.1.0.0
 Synopsis:            Functional Enumeration of Algebraic Types
 Description:         Feat (Functional Enumeration of Algebraic Types) provides
                      enumerations as functions from natural numbers to values
