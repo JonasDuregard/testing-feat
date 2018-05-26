@@ -13,53 +13,33 @@ import Control.Exception as Ex
 
 -- Welcome to the automatic HSE tester!
 -- Things to try while youre here:
---   switch between Exp/Module/Decl etc. as testing types (e.g. TestRoundtrip)
+--   switch between Exp/Module/Decl etc. as TestParse
 --   to discover bugs in the various entry-points of the grammar.
 
 -- TODOs: add some newtypes and modifiers to deal with syntax type invariants
--- (such as only enumerating non-empty do-expressions with a statement as last
--- expression).
+-- (such as only enumerating non-empty do-expressions with a statement as last expression).
 --
 -- Catalogue and report all the bugs found.
+--
+-- Fix the round-trip
 
 
-main = main_parse 100
-
-run n = main_parse n
-
-
--- Everything which is produced by the pretty printer and is parseable is
--- semantically euivalent to the original.
-type TestRoundtrip = Exp
-main_round n = undefined
-
-rep_round :: (Eq a,Parseable a, Show a, Pretty a) => a -> IO ()
-rep_round e = case myParse $ prettyPrint e of
-  ParseOk e' -> if e == e' || prettyPrint e == prettyPrint e' then return () else do
-    putStrLn $ "------ Error ------"
-    putStrLn $ "e:          "++ (show  e)
-    putStrLn $ "e(Pretty):  "++(prettyPrint e)
-    putStrLn $ "e':         "++ (show  e')
-    putStrLn $ "e'(Pretty): "++(prettyPrint e')
-    putStrLn ""
-  ParseFailed _ err -> return ()
-
-
-instance Enumerable SrcSpanInfo where
-  enumerate = datatype [c0 $ SrcSpanInfo (SrcSpan "M.hs" 0 0 0 0) []]
+main = do 
+  main_parse -- Test the parsable property
+  main_round -- Test the round-trip property
 
 -- Everything produced by the pretty printer is parseable.
-type TestParse = Module SrcSpanInfo
-main_parse n = do 
+type TestParse = Exp SrcSpanInfo -- Type to be tested
+main_parse = do 
    res <- test prop_parse
-   mapM (putStr . rep_parse) (counterexamples res)
+   mapM (putStr . rep_parse) res
 
 
-rep_parse :: (Parseable a, Show a, Pretty a) => a -> String
+rep_parse :: TestParse -> String
 rep_parse e = case myParse $ prettyPrint e of
   ParseOk e' -> const "" (e' `asTypeOf` e)
   ParseFailed _ err -> unlines
-    [(show  e)
+    [(show $ fmap (const ()) e)
     ,(prettyPrint e)
     ,err]
 
@@ -69,7 +49,58 @@ prop_parse e = case myParse $ prettyPrint e of
   ParseFailed _ err -> False
 
 
+-- Everything which is produced by the pretty printer parses back to itself
+type TestRoundtrip = Exp SrcSpanInfo
+main_round = do
+   res <- testOptions defOptions{oBounded = (Just 10000)} prop_trip
+   mapM (putStr . rep_trip) res
+
+-- Tests a "roundtrip and a half"
+--   parse (print e) == parse (print (parse (print e))) 
+-- Ignores parsing errors
+prop_trip :: TestRoundtrip -> Bool
+prop_trip e = case roundAndAhalf e of
+  ParseOk (e', e'') -> eq e' e''
+  ParseFailed _ err -> True
+
+eq :: TestRoundtrip -> TestRoundtrip -> Bool
+eq a b = fmap (const ()) a == fmap (const ()) b
+
+
+rep_trip :: TestRoundtrip -> String
+rep_trip e = case roundAndAhalf e of
+  ParseOk (e', e'') -> unlines [
+    "Original:",
+    show (fmap (const ()) e),
+    prettyPrint e,
+    "",
+    "One print/parse round:",
+    show (fmap (const ()) e'),
+    prettyPrint e',
+    "",
+    "Two print/parse round:",
+    show (fmap (const ()) e''),
+    prettyPrint e''
+    ]
+  ParseFailed _ err -> unlines
+    [(show $ fmap (const ()) e)
+    ,(prettyPrint e)
+    ,err]
+
+
+roundAndAhalf :: TestRoundtrip -> ParseResult (TestRoundtrip, TestRoundtrip)
+roundAndAhalf e = do
+  e' <- myParse $ prettyPrint e
+  e'' <- myParse $ prettyPrint e'
+  return (e', e'')
+  
 {-
+
+-- Everything which is produced by the pretty printer and is parseable is
+-- semantically euivalent to the original.
+
+
+
 -- The pretty printer doesnt fail, for testing the enumerators.
 type TestPrint = Module
 
@@ -87,20 +118,11 @@ rep_print e = Ex.catch
     putStrLn "")
 -}
 
+-- Parse with all extensions
 myParse :: Parseable a => String ->  ParseResult a
 myParse = parseWithMode defaultParseMode{
-  extensions = ge'
+  extensions = [ e |e@(EnableExtension _) <- knownExtensions]
   }
-
-ge' = map EnableExtension
-      [ TypeFamilies
-      , TemplateHaskell
-      , MagicHash
-      , ParallelArrays
-      , LambdaCase
-      , ExplicitNamespaces
-      ]
-
 
 sureParse :: Parseable a => String -> a
 sureParse s = case myParse s of
@@ -111,9 +133,8 @@ parse_print :: (Parseable a, Pretty a) => String -> (a,String)
 parse_print s = let a = sureParse s in (a,prettyPrint a)
 
 
-
-
-
+instance Enumerable SrcSpanInfo where
+  enumerate = datatype [c0 $ SrcSpanInfo (SrcSpan "M.hs" 0 0 0 0) []]
 
 -- Uncomment the dExcluding line to enable known bugs
 (let 
@@ -125,28 +146,60 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
     dExcluding 'PQuasiQuote .
     dAll 
   buggy3 = 
+    dExcept 'Tuple [| c3 (\a b c -> Tuple a b (nonEmpty c))|] .
+    dExcept 'TupleSection [| c3 (\a b c -> TupleSection a b (nonEmpty c))|] .
     dExcept 'LCase [| c2 (\a -> LCase a . nonEmpty) |] .
     dExcept 'Do [| c3 $ \a ss e -> Do a (ss ++ [Qualifier a e]) |] .
-  
+    dExcept 'Var [| c2 (\a b -> Var a (nonSpecial b)) |] .
+    dExcept 'Con [| c2 (\a b -> Con a (nonSpecial b)) |] .
+    
+    dExcept 'Lambda [| c3 (\a b c -> Lambda a (nonEmpty b) c) |] .
+    
+    dExcept 'RecUpdate [| c3 (\a b c -> RecUpdate a b (nonEmpty c)) |] .
+    
+    dExcept 'ListComp [| c3 (\a b c -> ListComp a b (nonEmpty c)) |] .
+    
+    dExcluding 'TypeApp .
+    dExcluding 'GenPragma . -- Seems genuinly buggy
+    dExcluding 'TypQuote .
+    dExcluding 'VarQuote .
+    dExcluding 'BracketExp .
+    dExcluding 'MDo .
+    dExcluding 'IPVar . -- What is this?
+    dExcluding 'QuasiQuote .
     dExcluding 'XPcdata .
     dExcluding 'XExpTag .
     dExcluding 'XChildTag .
+    dExcluding 'OverloadedLabel . 
     dExcept 'XPcdata [| c2 $ \a -> XPcdata a . nonEmpty |] .
     dExcept 'MultiIf [| c2 $ \a -> MultiIf a . nonEmpty |] .
     dAll
   
   
   fixdecs = 
+    dExcluding 'DeprPragmaDecl .
+    dExcluding 'WarnPragmaDecl .
+    dExcluding 'SpliceDecl .
+    dExcept 'TypeSig [| c3 (\a b c -> TypeSig a (nonEmpty b) c) |] . 
     dExcept 'InfixDecl [| c4 $ \a b c -> InfixDecl a b c . nonEmpty |] .
+    dExcept 'CompletePragma [| c3 $ \a b c -> CompletePragma a (nonEmpty b) c|] .
     dAll
     
   fixlit = 
-    dExcept 'PrimWord [| c2 (\a x -> PrimWord a (toInteger (x :: Word)) (show x)) |] .
+    dExcluding 'PrimWord . 
+    dExcluding 'PrimInt . -- Buggy?
+    --dExcept 'PrimWord [| c2 (\a x -> PrimWord a (toInteger (x :: Word)) (show x)) |] .
+    dExcept 'Int [| c2 (\a x -> Int a (toInteger (x :: Word)) (show x)) |] .
     dAll
     
+  fixType = 
+    dExcept 'TyUnboxedSum [| c2 (\a b -> TyUnboxedSum a (nonEmpty b))|] .
+    
+    dExcluding 'TyQuasiQuote .
+    dAll
 
  in fmap concat $ mapM deriveEnumerable' [
-  dAll ''Module,
+  dExcluding 'XmlHybrid $ dExcluding 'XmlPage $ dAll ''Module,
 --  dAll ''SrcLoc,
   dExcluding 'AnnModulePragma $ dExcluding 'LanguagePragma
    -- dExcept 'LanguagePragma [|c2 $ \x -> LanguagePragma x . nonEmpty|] 
@@ -157,7 +210,7 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   dAll ''QName,
   dAll ''ImportSpec,
   dAll ''Annotation,
-  dAll ''Type,
+  fixType ''Type,
   dAll ''Activation,
   dAll ''Rule,
   dAll ''CallConv,
@@ -188,7 +241,7 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   dAll ''GuardedRhs,
   dAll ''IPBind,
   dAll ''XAttr,
-  dAll ''Splice,
+  dExcluding 'IdSplice $ dAll ''Splice,
   dAll ''Bracket,
   dAll ''QualStmt,
   dAll ''FieldUpdate,
@@ -219,7 +272,9 @@ parse_print s = let a = sureParse s in (a,prettyPrint a)
   dAll ''InstRule,
   dAll ''Unpackedness,
   dAll ''FieldDecl, 
-  dAll ''InstHead
+  dAll ''InstHead,
+  dAll ''DerivStrategy,
+  dAll ''MaybePromotedName
   ])
 
 
